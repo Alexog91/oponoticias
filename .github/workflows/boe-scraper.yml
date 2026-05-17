@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -20,10 +20,8 @@ jobs:
     - name: Ejecutar script del BOE
       run: python3 leer_boe.py
     
-    - name: Guardar cambios
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add convocatorias.csv
-        git commit -m "Actualizar convocatorias - $(date '+%Y-%m-%d %H:%M:%S')" || echo "Sin cambios"
-        git push
+    - name: Commit y Push
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "Actualizar convocatorias BOE"
+        file_pattern: convocatorias.csv
