@@ -106,49 +106,97 @@ def guardar_en_supabase(convocatorias):
             print(f"❌ Error: {e}")
 
 def extraer_cuerpo(titulo):
-    """Intenta extraer el cuerpo/categoría del título"""
-    cuerpos = ['Administrativo', 'Hacienda', 'Justicia', 'Sanitario', 'Local', 'Técnico']
-    for cuerpo in cuerpos:
-        if cuerpo.lower() in titulo.lower():
-            return cuerpo
-    return 'Otro'
+    """Extrae el tipo de puesto del título"""
+    texto_busqueda = titulo.upper()
+    
+    if "POLICÍA LOCAL" in texto_busqueda or "POLICÍA MUNICIPAL" in texto_busqueda:
+        return "👮 Policía Local"
+    elif "ADMINISTRATIVO" in texto_busqueda or "ADMINISTRACIÓN" in texto_busqueda:
+        return "📋 Administrativo"
+    elif "SANITARIO" in texto_busqueda or "ENFERMERA" in texto_busqueda or "MÉDICO" in texto_busqueda:
+        return "🏥 Sanitario"
+    elif "JUSTICIA" in texto_busqueda or "JUZGADO" in texto_busqueda:
+        return "⚖️ Justicia"
+    elif "TÉCNICO" in texto_busqueda or "INGENIERO" in texto_busqueda:
+        return "🔧 Técnico"
+    elif "HACIENDA" in texto_busqueda or "TESORERA" in texto_busqueda:
+        return "💰 Hacienda"
+    elif "SERVICIOS" in texto_busqueda or "JARDINERÍA" in texto_busqueda or "PEÓN" in texto_busqueda:
+        return "🚧 Servicios"
+    elif "EDUCACIÓN" in texto_busqueda or "PROFESOR" in texto_busqueda:
+        return "📚 Educación"
+    elif "BIBLIOTECA" in texto_busqueda:
+        return "📖 Biblioteca"
+    elif "AGENTE FORESTAL" in texto_busqueda:
+        return "🌲 Agente Forestal"
+    else:
+        return "📄 Otro"
 
 def enviar_a_telegram(conv):
-    """Envía a Telegram"""
-    mensaje = f"""
-📌 NUEVA CONVOCATORIA
+    """Envía mensaje formateado y profesional a Telegram"""
+    
+    from datetime import datetime
+    
+    # Convertir fecha a español
+    try:
+        fecha_obj = datetime.fromisoformat(conv['fecha'].replace('Z', '+00:00'))
+        meses = {
+            1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',
+            5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
+            9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
+        }
+        mes = meses[fecha_obj.month]
+        fecha_spanish = f"{fecha_obj.day} de {mes} de {fecha_obj.year}"
+    except:
+        fecha_spanish = conv['fecha']
+    
+    titulo = conv['titulo']
+    cuerpo = conv.get('cuerpo', '📄 Otro')
+    resumen = conv['resumen']
+    
+    if len(resumen) > 120:
+        resumen = resumen[:120] + "..."
+    
+    plazas_text = f"🎁 Plazas: {conv.get('plazas', 'N/A')}\n" if conv.get('plazas') else ""
+    
+    mensaje = f"""🎯 <b>NUEVA CONVOCATORIA</b>
 
-<b>{conv['titulo'][:100]}</b>
+<b>{titulo[:100]}</b>
 
-📅 {conv['fecha']}
+<b>Tipo de plaza:</b> {cuerpo}
 
-📝 {conv['resumen']}
+{plazas_text}📅 <b>Fecha:</b> {fecha_spanish}
 
-🔗 <a href="{conv['enlace']}">Ver en BOE</a>
+<b>ℹ️ Detalles:</b>
+{resumen}
 
-#oposiciones #empleo #BOE
-"""
+<a href="{conv['enlace']}"><b>📄 Ver en BOE</b></a>
+
+#oposiciones #empleo #BOE"""
     
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         data = {
             'chat_id': TELEGRAM_CHAT_ID,
             'text': mensaje,
-            'parse_mode': 'HTML'
+            'parse_mode': 'HTML',
+            'disable_web_page_preview': True
         }
         
-        req = urllib.request.Request(url, 
+        req = urllib.request.Request(
+            url,
             data=urllib.parse.urlencode(data).encode('utf-8'),
-            headers={'Content-Type': 'application/x-www-form-urlencoded'})
+            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+        )
         
         response = urllib.request.urlopen(req, timeout=10)
         response.read()
         response.close()
         
-        print(f"✓ Enviada a Telegram: {conv['titulo'][:60]}...")
+        print(f"✅ Enviada a Telegram: {titulo[:50]}...")
     
     except Exception as e:
-        print(f"⚠️  Error enviando a Telegram: {e}")
+        print(f"❌ Error enviando a Telegram: {e}")
 
 if __name__ == "__main__":
     convocatorias = leer_boe_rss()
