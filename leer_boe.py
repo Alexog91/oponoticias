@@ -204,9 +204,11 @@ if __name__ == "__main__":
     
     if convocatorias:
         for conv in convocatorias:
-            guardar_en_supabase([conv])  # Guarda de una en una
+            # Añadir cuerpo ANTES de enviar
+            conv['cuerpo'] = extraer_cuerpo(conv['titulo'])
+            guardar_en_supabase([conv])
             enviar_a_telegram(conv)
-            time.sleep(1)  # Espera 1 segundo entre mensajes
+            time.sleep(1)
         
         print(f"\n✅ Procesadas {len(convocatorias)} convocatorias")
     else:
