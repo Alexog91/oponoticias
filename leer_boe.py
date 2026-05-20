@@ -199,10 +199,15 @@ def enviar_a_telegram(conv):
         print(f"❌ Error enviando a Telegram: {e}")
 
 if __name__ == "__main__":
+    import time
     convocatorias = leer_boe_rss()
     
     if convocatorias:
-        guardar_en_supabase(convocatorias)
+        for conv in convocatorias:
+            guardar_en_supabase([conv])  # Guarda de una en una
+            enviar_a_telegram(conv)
+            time.sleep(1)  # Espera 1 segundo entre mensajes
+        
         print(f"\n✅ Procesadas {len(convocatorias)} convocatorias")
     else:
         print("\n❌ No se encontraron convocatorias")
