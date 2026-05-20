@@ -109,37 +109,41 @@ def extraer_cuerpo(titulo):
     """Extrae el tipo de puesto del título"""
     texto_busqueda = titulo.upper()
     
-    if "POLICÍA LOCAL" in texto_busqueda or "POLICÍA MUNICIPAL" in texto_busqueda:
-        return "👮 Policía Local"
-    elif "ADMINISTRATIVO" in texto_busqueda or "ADMINISTRACIÓN" in texto_busqueda:
+    if "POLIC" in texto_busqueda:
+        return "👮 Policía"
+    elif "ADMINIST" in texto_busqueda:
         return "📋 Administrativo"
-    elif "SANITARIO" in texto_busqueda or "ENFERMERA" in texto_busqueda or "MÉDICO" in texto_busqueda:
+    elif "SANITARI" in texto_busqueda or "ENFERM" in texto_busqueda or "MÉDIC" in texto_busqueda or "FISIOTER" in texto_busqueda:
         return "🏥 Sanitario"
     elif "JUSTICIA" in texto_busqueda or "JUZGADO" in texto_busqueda:
         return "⚖️ Justicia"
-    elif "TÉCNICO" in texto_busqueda or "INGENIERO" in texto_busqueda:
+    elif "TÉCNIC" in texto_busqueda or "INGENIER" in texto_busqueda or "INFORMÁTIC" in texto_busqueda:
         return "🔧 Técnico"
-    elif "HACIENDA" in texto_busqueda or "TESORERA" in texto_busqueda:
+    elif "HACIENDA" in texto_busqueda or "TESORERO" in texto_busqueda:
         return "💰 Hacienda"
-    elif "SERVICIOS" in texto_busqueda or "JARDINERÍA" in texto_busqueda or "PEÓN" in texto_busqueda:
+    elif "JARDINERÍA" in texto_busqueda or "PEÓN" in texto_busqueda or "OPERARIO" in texto_busqueda:
         return "🚧 Servicios"
-    elif "EDUCACIÓN" in texto_busqueda or "PROFESOR" in texto_busqueda:
+    elif "EDUCACIÓN" in texto_busqueda or "PROFESOR" in texto_busqueda or "DOCENTE" in texto_busqueda:
         return "📚 Educación"
     elif "BIBLIOTECA" in texto_busqueda:
         return "📖 Biblioteca"
-    elif "AGENTE FORESTAL" in texto_busqueda:
+    elif "FORESTAL" in texto_busqueda:
         return "🌲 Agente Forestal"
+    elif "BOMBERO" in texto_busqueda:
+        return "🚒 Bombero"
+    elif "ARQUITECTO" in texto_busqueda:
+        return "🏛️ Arquitecto"
     else:
-        return "📄 Otro"
+        return "📄 Convocatoria"
+
 
 def enviar_a_telegram(conv):
     """Envía mensaje formateado y profesional a Telegram"""
     
-    from datetime import datetime
-    
     # Convertir fecha a español
     try:
-        fecha_obj = datetime.fromisoformat(conv['fecha'].replace('Z', '+00:00'))
+        from email.utils import parsedate_to_datetime
+        fecha_obj = parsedate_to_datetime(conv['fecha'])
         meses = {
             1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',
             5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
@@ -151,26 +155,23 @@ def enviar_a_telegram(conv):
         fecha_spanish = conv['fecha']
     
     titulo = conv['titulo']
-    cuerpo = conv.get('cuerpo', '📄 Otro')
+    cuerpo = conv.get('cuerpo', '📄 Convocatoria')
     resumen = conv['resumen']
     
-    if len(resumen) > 120:
-        resumen = resumen[:120] + "..."
-    
-    plazas_text = f"🎁 Plazas: {conv.get('plazas', 'N/A')}\n" if conv.get('plazas') else ""
+    if len(resumen) > 150:
+        resumen = resumen[:150] + "..."
     
     mensaje = f"""🎯 <b>NUEVA CONVOCATORIA</b>
 
 <b>{titulo[:100]}</b>
 
-<b>Tipo de plaza:</b> {cuerpo}
+🏷️ <b>Tipo:</b> {cuerpo}
+📅 <b>Fecha:</b> {fecha_spanish}
 
-{plazas_text}📅 <b>Fecha:</b> {fecha_spanish}
-
-<b>ℹ️ Detalles:</b>
+ℹ️ <b>Detalles:</b>
 {resumen}
 
-<a href="{conv['enlace']}"><b>📄 Ver en BOE</b></a>
+<a href="{conv['enlace']}">📄 Ver en BOE</a>
 
 #oposiciones #empleo #BOE"""
     
@@ -198,17 +199,56 @@ def enviar_a_telegram(conv):
     except Exception as e:
         print(f"❌ Error enviando a Telegram: {e}")
 
+
+def guardar_en_supabase(convocatorias):
+    """Guarda las convocatorias en Supabase"""
+    print("\n💾 Guardando en Supabase...\n")
+    
+    for conv in convocatorias:
+        data = {
+            'fecha': conv['fecha'],
+            'titulo': conv['titulo'],
+            'enlace': conv['enlace'],
+            'resumen': conv['resumen'],
+            'cuerpo': conv.get('cuerpo', '📄 Convocatoria')
+        }
+        
+        try:
+            url = f"{SUPABASE_URL}/rest/v1/convocatorias"
+            headers = {
+                'apikey': SUPABASE_API_KEY,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            }
+            
+            json_data = json.dumps(data).encode('utf-8')
+            req = urllib.request.Request(url, data=json_data, headers=headers, method='POST')
+            
+            response = urllib.request.urlopen(req, timeout=10)
+            response.read()
+            response.close()
+            
+            print(f"✓ Guardada en Supabase: {conv['titulo'][:60]}...")
+        
+        except urllib.error.HTTPError as e:
+            if e.code == 409:
+                print(f"ℹ️  Ya existe: {conv['titulo'][:60]}...")
+            else:
+                print(f"❌ Error guardando en Supabase: {e}")
+        except Exception as e:
+            print(f"❌ Error: {e}")
+
+
 if __name__ == "__main__":
     import time
     convocatorias = leer_boe_rss()
     
     if convocatorias:
         for conv in convocatorias:
-            # Añadir cuerpo ANTES de enviar
             conv['cuerpo'] = extraer_cuerpo(conv['titulo'])
             guardar_en_supabase([conv])
             enviar_a_telegram(conv)
-            time.sleep(1)
+            time.sleep(2)
         
         print(f"\n✅ Procesadas {len(convocatorias)} convocatorias")
     else:
