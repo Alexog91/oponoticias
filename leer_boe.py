@@ -9,11 +9,13 @@ from email.utils import parsedate_to_datetime
 from datetime import datetime
 
 # CONFIGURACIÓN
-RSS_URL = "https://www.boe.es/rss/boe.php?s=2B"
-TELEGRAM_TOKEN = "8803259416:AAFfXoRvMXIHemcIe6a5ey69TeR632-OZFI"
-TELEGRAM_CHAT_ID = "-1003528545552"
-SUPABASE_URL = "https://opnbxphxfclazxduhmkp.supabase.co"
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wbmJ4cGh4ZmNsYXp4ZHVobWtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNDQwMzcsImV4cCI6MjA5NDYyMDAzN30.lcMQwdW2HTCeg2X6Qrl0uTmZA73Yr0KdGHf3y3fLMtM"
+import os
+
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
+TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_API_KEY = os.environ["SUPABASE_API_KEY"]
+ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
 
 def leer_boe_rss():
