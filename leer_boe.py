@@ -5,12 +5,12 @@ import xml.etree.ElementTree as ET
 import json
 import os
 import time
+import re
 from email.utils import parsedate_to_datetime
 from datetime import datetime
 
-# CONFIGURACIÓN
-import os
-
+# CONFIGURACIÓN - Desde GitHub Secrets
+RSS_URL = "https://www.boe.es/rss/boe.php?s=2B"
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 SUPABASE_URL = os.environ["SUPABASE_URL"]
@@ -46,6 +46,12 @@ def leer_boe_rss():
                 enlace = link_elem.text if link_elem is not None else 'Sin enlace'
                 fecha = pubDate_elem.text if pubDate_elem is not None else 'Sin fecha'
                 resumen = description_elem.text if description_elem is not None else 'Sin descripción'
+                
+                # Limpiar resumen de metadata técnica
+                resumen = re.sub(r'[-–]\s*Referencia:.*', '', resumen)
+                resumen = re.sub(r'[-–]\s*KBytes:.*', '', resumen)
+                resumen = re.sub(r'KBytes:.*', '', resumen)
+                resumen = resumen.strip()
                 resumen = resumen[:200] if resumen else 'Sin descripción'
                 
                 palabras_clave = ['oposición', 'oposiciones', 'selectivo', 'convocatoria', 'plazas']
@@ -68,6 +74,61 @@ def leer_boe_rss():
         return []
 
 
+def generar_resumen_con_claude(titulo, resumen):
+    """Usa Claude API para generar un resumen inteligente"""
+    
+    try:
+        prompt = f"""Analiza esta convocatoria del BOE y genera UN RESUMEN MUY CORTO.
+
+Título: {titulo}
+Descripción: {resumen}
+
+RESPONDE SOLO con una línea en MAYÚSCULAS con este formato exacto:
+[NÚMERO] PLAZAS - [PUESTO] - [LUGAR]
+
+Ejemplos correctos:
+2 PLAZAS - POLICÍA LOCAL - CÁDIZ
+1 PLAZA - ADMINISTRATIVO - MADRID
+3 PLAZAS - TÉCNICO INFORMÁTICO - VALENCIA
+
+Reglas:
+- Si no se indica el número de plazas, pon "VARIAS PLAZAS"
+- El LUGAR es el municipio o la institución
+- NO añadas nada más, solo esa línea"""
+        
+        # Llamar a Claude API
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        
+        data = {
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 100,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+        
+        json_data = json.dumps(data).encode('utf-8')
+        req = urllib.request.Request(url, data=json_data, headers=headers, method='POST')
+        
+        response = urllib.request.urlopen(req, timeout=10)
+        response_data = json.loads(response.read().decode('utf-8'))
+        response.close()
+        
+        # Extraer el texto de la respuesta
+        resumen_generado = response_data['content'][0]['text'].strip()
+        print(f"✨ Claude generó: {resumen_generado}")
+        return resumen_generado
+    
+    except Exception as e:
+        print(f"⚠️  Error con Claude: {e}. Usando resumen por defecto.")
+        return "Convocatoria disponible"
+
+
 def extraer_cuerpo(titulo):
     """Extrae el tipo de puesto del título"""
     texto_busqueda = titulo.upper()
@@ -76,26 +137,16 @@ def extraer_cuerpo(titulo):
         return "👮 Policía"
     elif "ADMINIST" in texto_busqueda:
         return "📋 Administrativo"
-    elif "SANITARI" in texto_busqueda or "ENFERM" in texto_busqueda or "MÉDIC" in texto_busqueda or "FISIOTER" in texto_busqueda:
+    elif "SANITARI" in texto_busqueda or "ENFERM" in texto_busqueda or "MÉDIC" in texto_busqueda:
         return "🏥 Sanitario"
     elif "JUSTICIA" in texto_busqueda or "JUZGADO" in texto_busqueda:
         return "⚖️ Justicia"
-    elif "TÉCNIC" in texto_busqueda or "INGENIER" in texto_busqueda or "INFORMÁTIC" in texto_busqueda:
+    elif "TÉCNIC" in texto_busqueda or "INGENIER" in texto_busqueda:
         return "🔧 Técnico"
     elif "HACIENDA" in texto_busqueda or "TESORERO" in texto_busqueda:
         return "💰 Hacienda"
-    elif "JARDINERÍA" in texto_busqueda or "PEÓN" in texto_busqueda or "OPERARIO" in texto_busqueda:
-        return "🚧 Servicios"
-    elif "EDUCACIÓN" in texto_busqueda or "PROFESOR" in texto_busqueda or "DOCENTE" in texto_busqueda:
+    elif "EDUCACIÓN" in texto_busqueda or "PROFESOR" in texto_busqueda:
         return "📚 Educación"
-    elif "BIBLIOTECA" in texto_busqueda:
-        return "📖 Biblioteca"
-    elif "FORESTAL" in texto_busqueda:
-        return "🌲 Agente Forestal"
-    elif "BOMBERO" in texto_busqueda:
-        return "🚒 Bombero"
-    elif "ARQUITECTO" in texto_busqueda:
-        return "🏛️ Arquitecto"
     else:
         return "📄 Convocatoria"
 
@@ -158,20 +209,16 @@ def enviar_a_telegram(conv):
     
     titulo = conv['titulo']
     cuerpo = conv.get('cuerpo', '📄 Convocatoria')
-    resumen = conv['resumen']
-    
-    if len(resumen) > 150:
-        resumen = resumen[:150] + "..."
+    detalles_ia = conv.get('resumen_ia', 'Convocatoria disponible')
     
     mensaje = f"""🎯 <b>NUEVA CONVOCATORIA</b>
 
-<b>{titulo[:100]}</b>
+<b>{titulo[:120]}</b>
 
 🏷️ <b>Tipo:</b> {cuerpo}
 📅 <b>Fecha:</b> {fecha_spanish}
 
-ℹ️ <b>Detalles:</b>
-{resumen}
+ℹ️ <b>Detalles:</b> {detalles_ia}
 
 <a href="{conv['enlace']}">📄 Ver en BOE</a>
 
@@ -209,6 +256,10 @@ if __name__ == "__main__":
         nuevas = 0
         for conv in convocatorias:
             conv['cuerpo'] = extraer_cuerpo(conv['titulo'])
+            
+            # Generar resumen inteligente con Claude
+            print(f"\n🤖 Analizando: {conv['titulo'][:60]}...")
+            conv['resumen_ia'] = generar_resumen_con_claude(conv['titulo'], conv['resumen'])
             
             # Solo enviar a Telegram si ES NUEVA (no existe en Supabase)
             if guardar_en_supabase(conv):
