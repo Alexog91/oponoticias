@@ -78,23 +78,52 @@ def generar_resumen_con_claude(titulo, resumen):
     """Usa Claude API para generar un resumen inteligente"""
     
     try:
-        prompt = f"""Analiza esta convocatoria del BOE y genera UN RESUMEN MUY CORTO.
+      prompt = f"""Analiza esta convocatoria del BOE y extrae la información clave.
 
 Título: {titulo}
 Descripción: {resumen}
 
 RESPONDE SOLO con una línea en MAYÚSCULAS con este formato exacto:
-[NÚMERO] PLAZAS - [PUESTO] - [LUGAR]
+[NÚMERO] PLAZAS - [PUESTO ESPECÍFICO] - [LUGAR]
+
+IMPORTANTE: Busca SIEMPRE el puesto ESPECÍFICO, nunca genérico.
+
+Ejemplos de puestos ESPECÍFICOS (NO genéricos):
+- POLICÍA LOCAL (NO "Policía")
+- ENFERMERO (NO "Sanitario")
+- INSPECTOR DE HACIENDA (NO "Hacienda")
+- TÉCNICO DE HACIENDA
+- AGENTE DE HACIENDA
+- JUEZ (NO "Justicia")
+- FISCAL
+- LETRADO DE LA ADMINISTRACIÓN DE JUSTICIA
+- GESTOR PROCESAL
+- AUXILIAR JUDICIAL
+- PROFESOR DE EDUCACIÓN FÍSICA (NO "Profesor")
+- TÉCNICO INFORMÁTICO (NO "Técnico")
+- INGENIERO TÉCNICO
+- BOMBERO
+- JARDINERO
+- PEÓN DE SERVICIOS
+- ADMINISTRATIVO
+- SECRETARIO DE AYUNTAMIENTO
+
+Estrategia:
+1. Lee el título completo buscando palabras específicas
+2. Si dice "Resolución de X de Y, del Ayuntamiento de Z", busca después qué puesto es
+3. Extrae el puesto más específico posible del texto
+4. Si encuentras "Inspector", "Técnico", "Agente", "Gestor", "Letrado", "Auxiliar" + categoría, úsalo
+5. NUNCA pongas términos genéricos como "Justicia", "Hacienda", "Sanitario", "Funcionario"
 
 Ejemplos correctos:
 2 PLAZAS - POLICÍA LOCAL - CÁDIZ
-1 PLAZA - ADMINISTRATIVO - MADRID
-3 PLAZAS - TÉCNICO INFORMÁTICO - VALENCIA
+1 PLAZA - INSPECTOR DE HACIENDA - MADRID
+3 PLAZAS - LETRADO DE LA ADMINISTRACIÓN DE JUSTICIA - BARCELONA
+1 PLAZA - ENFERMERO - VALENCIA
+1 PLAZA - PROFESOR DE EDUCACIÓN FÍSICA - SEVILLA
 
-Reglas:
-- Si no se indica el número de plazas, pon "VARIAS PLAZAS"
-- El LUGAR es el municipio o la institución
-- NO añadas nada más, solo esa línea"""
+Si NO encuentras un puesto específico, busca cualquier palabra del texto que indique el cargo.
+Si realmente no hay nada, pon: 1 PLAZA - PERSONAL - [LUGAR]"""
         
         # Llamar a Claude API
         url = "https://api.anthropic.com/v1/messages"
