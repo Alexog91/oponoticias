@@ -221,7 +221,7 @@ def guardar_en_supabase(conv):
 
 
 def enviar_a_telegram(conv):
-    """Envía mensaje formateado a Telegram"""
+    """Envía mensaje formateado a Telegram con diseño Opción 3"""
     
     # Convertir fecha a español
     try:
@@ -236,18 +236,32 @@ def enviar_a_telegram(conv):
     except:
         fecha_spanish = conv['fecha']
     
-    titulo = conv['titulo']
-    cuerpo = conv.get('cuerpo', '📄 Convocatoria')
+    # Extraer información del detalles_ia
     detalles_ia = conv.get('resumen_ia', 'Convocatoria disponible')
     
-    mensaje = f"""🎯 <b>NUEVA CONVOCATORIA</b>
+    # Parsear: "X PLAZAS - PUESTO - UBICACIÓN"
+    partes = detalles_ia.split(' - ')
+    plazas = partes[0].strip() if len(partes) > 0 else "N/A"
+    puesto = partes[1].strip() if len(partes) > 1 else "Convocatoria"
+    ubicacion = partes[2].strip() if len(partes) > 2 else "España"
+    
+    # Extraer resumen del título (primeros 90 caracteres o hasta primer verbo)
+    titulo_corto = conv['titulo'][:90]
+    
+    # Construir mensaje con diseño Opción 3
+    mensaje = f"""╔═══════════════════════════════════╗
+║ 🎯 NUEVA CONVOCATORIA             ║
+╚═══════════════════════════════════╝
 
-<b>{titulo[:120]}</b>
+📰 {titulo_corto}
 
-🏷️ <b>Tipo:</b> {cuerpo}
-📅 <b>Fecha:</b> {fecha_spanish}
-
-ℹ️ <b>Detalles:</b> {detalles_ia}
+┌─────────────────────────────────────┐
+│ 📍 {puesto}
+│
+│ 🔢 Plazas: {plazas}
+│ 📍 Ubicación: {ubicacion}
+│ 📅 Publicado: {fecha_spanish}
+└─────────────────────────────────────┘
 
 <a href="{conv['enlace']}">📄 Ver en BOE</a>
 
@@ -272,7 +286,7 @@ def enviar_a_telegram(conv):
         response.read()
         response.close()
         
-        print(f"✅ Enviada a Telegram: {titulo[:50]}...")
+        print(f"✅ Enviada a Telegram: {titulo_corto}...")
     
     except Exception as e:
         print(f"❌ Error enviando a Telegram: {e}")
