@@ -78,7 +78,7 @@ def generar_resumen_con_claude(titulo, resumen):
     """Usa Claude API para generar un resumen inteligente"""
     
     try:
-      prompt = f"""Analiza esta convocatoria del BOE y extrae la información clave.
+        prompt = f"""Analiza esta convocatoria del BOE y extrae la información clave.
 
 Título: {titulo}
 Descripción: {resumen}
