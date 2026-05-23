@@ -220,8 +220,66 @@ def guardar_en_supabase(conv):
         return False
 
 
+def obtener_icono_puesto(detalles):
+    """Retorna el icono según el tipo de puesto extraído por Claude"""
+    texto = detalles.upper()
+    
+    # SEGURIDAD
+    if any(p in texto for p in ["POLICÍA", "POLICIA", "BOMBERO", "GUARDIA CIVIL", "SEGURIDAD", "VIGILANTE"]):
+        return "👮"
+    # SANIDAD
+    elif any(p in texto for p in ["ENFERMERO", "MÉDICO", "MEDICO", "FARMACÉUTICO", "SANITARIO", "AUXILIAR DE ENFERMERÍA", "CELADOR"]):
+        return "🏥"
+    # JUSTICIA
+    elif any(p in texto for p in ["LETRADO", "JUDICIAL", "JUEZ", "FISCAL", "GESTOR PROCESAL", "AUXILIAR JUDICIAL", "TRAMITACIÓN PROCESAL"]):
+        return "⚖️"
+    # EDUCACIÓN
+    elif any(p in texto for p in ["PROFESOR", "DOCENTE", "MAESTRO", "UNIVERSITARIO", "CUERPOS DOCENTES", "EDUCACIÓN", "ENSEÑANZA"]):
+        return "📚"
+    # ADMINISTRACIÓN
+    elif any(p in texto for p in ["ADMINISTRATIVO", "SECRETARIO", "AUXILIAR ADMINISTRATIVO", "GESTIÓN ADMINISTRATIVA"]):
+        return "📋"
+    # HACIENDA
+    elif any(p in texto for p in ["INSPECTOR", "HACIENDA", "TESORERO", "RECAUDADOR", "AGENTE TRIBUTARIO"]):
+        return "💰"
+    # TÉCNICO / INGENIERÍA
+    elif any(p in texto for p in ["TÉCNICO", "TECNICO", "INGENIERO", "INFORMÁTICO", "INFORMATICO", "ARQUITECTO"]):
+        return "🔧"
+    # SERVICIOS Y MANTENIMIENTO
+    elif any(p in texto for p in ["JARDINERO", "PEÓN", "PEON", "LIMPIEZA", "OPERARIO", "MANTENIMIENTO"]):
+        return "🧹"
+    # PERSONAL FUNCIONARIO Y LABORAL GENÉRICO
+    elif any(p in texto for p in ["PERSONAL FUNCIONARIO", "PERSONAL LABORAL", "VARIAS PLAZAS", "FUNCIONARIO Y LABORAL"]):
+        return "🏛️"
+    # DEFAULT
+    else:
+        return "📄"
+
+
+def limpiar_titulo(titulo):
+    """
+    Extrae solo: 'Resolución de [fecha], de/del [organismo]'
+    Elimina todo lo que va después de la coma tras el organismo.
+    """
+    # Buscar el patrón: "Resolución de [fecha], de[l] [organismo]"
+    patron = r'^(Resolución[^,]+,\s+(?:de la|del|de)\s+[^,]+(?:\([^)]+\))?)'
+    match = re.search(patron, titulo, re.IGNORECASE)
+    
+    if match:
+        resultado = match.group(1).strip()
+        return resultado
+    
+    # Si no coincide el patrón, cortar en la segunda coma
+    partes = titulo.split(',')
+    if len(partes) >= 2:
+        return f"{partes[0]}, {partes[1].strip()}"
+    
+    # Fallback: primeros 100 caracteres
+    return titulo[:100]
+
+
 def enviar_a_telegram(conv):
-    """Envía mensaje formateado a Telegram con diseño Opción 3"""
+    """Envía mensaje limpio y estético a Telegram — sin marcos descuadrados"""
     
     # Convertir fecha a español
     try:
@@ -231,42 +289,35 @@ def enviar_a_telegram(conv):
             5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
             9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
         }
-        mes = meses[fecha_obj.month]
-        fecha_spanish = f"{fecha_obj.day} de {mes} de {fecha_obj.year}"
+        fecha_spanish = f"{fecha_obj.day} de {meses[fecha_obj.month]} de {fecha_obj.year}"
     except:
         fecha_spanish = conv['fecha']
-    
-    # Extraer información del detalles_ia
+
+    # Extraer datos
     detalles_ia = conv.get('resumen_ia', 'Convocatoria disponible')
-    
-    # Parsear: "X PLAZAS - PUESTO - UBICACIÓN"
     partes = detalles_ia.split(' - ')
-    plazas = partes[0].strip() if len(partes) > 0 else "N/A"
-    puesto = partes[1].strip() if len(partes) > 1 else "Convocatoria"
+    plazas  = partes[0].strip() if len(partes) > 0 else "N/A"
+    puesto  = partes[1].strip() if len(partes) > 1 else "Convocatoria"
     ubicacion = partes[2].strip() if len(partes) > 2 else "España"
-    
-    # Extraer resumen del título (primeros 90 caracteres o hasta primer verbo)
-    titulo_corto = conv['titulo'][:90]
-    
-    # Construir mensaje con diseño Opción 3
-    mensaje = f"""╔═══════════════════════════════════╗
-║ 🎯 NUEVA CONVOCATORIA             ║
-╚═══════════════════════════════════╝
 
-📰 {titulo_corto}
+    # Icono según puesto
+    icono = obtener_icono_puesto(detalles_ia)
 
-┌─────────────────────────────────────┐
-│ 📍 {puesto}
-│
-│ 🔢 Plazas: {plazas}
-│ 📍 Ubicación: {ubicacion}
-│ 📅 Publicado: {fecha_spanish}
-└─────────────────────────────────────┘
+    # Título limpio (solo resolución + organismo)
+    titulo_limpio = limpiar_titulo(conv['titulo'])
 
-<a href="{conv['enlace']}">📄 Ver en BOE</a>
+    # Mensaje final — limpio, sin marcos, estético
+    mensaje = (
+        f"🎯 <b>NUEVA CONVOCATORIA</b>\n\n"
+        f"📰 <b>{titulo_limpio}</b>\n\n"
+        f"{icono} <b>{puesto}</b>\n\n"
+        f"🔢 Plazas: {plazas}\n"
+        f"📍 Ubicación: {ubicacion}\n"
+        f"📅 Publicado: {fecha_spanish}\n\n"
+        f"<a href=\"{conv['enlace']}\">📄 Ver en BOE</a>\n\n"
+        f"#oposiciones #empleo #BOE"
+    )
 
-#oposiciones #empleo #BOE"""
-    
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         data = {
@@ -275,21 +326,17 @@ def enviar_a_telegram(conv):
             'parse_mode': 'HTML',
             'disable_web_page_preview': True
         }
-        
         req = urllib.request.Request(
             url,
             data=urllib.parse.urlencode(data).encode('utf-8'),
             headers={'Content-Type': 'application/x-www-form-urlencoded'}
         )
-        
         response = urllib.request.urlopen(req, timeout=10)
         response.read()
         response.close()
-        
-        print(f"✅ Enviada a Telegram: {titulo_corto}...")
-    
+        print(f"✅ Enviada: {titulo_limpio[:60]}...")
     except Exception as e:
-        print(f"❌ Error enviando a Telegram: {e}")
+        print(f"❌ Error Telegram: {e}")
 
 
 if __name__ == "__main__":
