@@ -717,6 +717,8 @@ def regenerar_sitemap(slugs_nuevos):
         hoy = datetime.now().strftime("%Y-%m-%d")
         urls = [
             ("https://oponoticias.com/", hoy, "daily", "1.0"),
+            ("https://oponoticias.com/boe-hoy.html", hoy, "daily", "0.9"),
+            ("https://oponoticias.com/blog.html", hoy, "weekly", "0.8"),
             ("https://oponoticias.com/categoria/educacion.html", hoy, "daily", "0.8"),
             ("https://oponoticias.com/categoria/sanidad.html", hoy, "daily", "0.8"),
             ("https://oponoticias.com/categoria/justicia.html", hoy, "daily", "0.8"),
