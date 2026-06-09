@@ -1,9 +1,12 @@
 name: Daily BOE Check
 
+# ÚNICO workflow del BOE: lee el BOE → guarda en Supabase → envía a Telegram
+# → genera las páginas HTML → hace push a oponoticias-web (Vercel despliega solo).
+# (Sustituye a boe-scraper.yml, que debe eliminarse para no duplicar el trabajo.)
 on:
   schedule:
-    - cron: '30 7 * * *'  # 9:30 CEST (UTC+2) = 7:30 UTC
-  workflow_dispatch:       # Permite ejecución manual desde GitHub UI
+    - cron: '0 5 * * 1-6'  # 7:00 CEST (UTC+2) = 5:00 UTC · lunes-sábado (el BOE no publica domingos)
+  workflow_dispatch:        # Permite ejecución manual desde GitHub UI
 
 permissions:
   contents: write
