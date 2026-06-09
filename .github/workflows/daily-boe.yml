@@ -1,0 +1,35 @@
+name: Daily BOE Check
+
+on:
+  schedule:
+    - cron: '30 7 * * *'  # 9:30 CEST (UTC+2) = 7:30 UTC
+  workflow_dispatch:       # Permite ejecución manual desde GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  check-boe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Clone web repo
+        run: |
+          git clone --depth 1 https://x-access-token:${{ secrets.GH_PAT }}@github.com/Alexog91/oponoticias-web.git
+          echo "Clonado OK"
+
+      - name: Run leer_boe.py
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_API_KEY: ${{ secrets.SUPABASE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          WEB_REPO_PATH: ./oponoticias-web
+        run: python3 leer_boe.py
