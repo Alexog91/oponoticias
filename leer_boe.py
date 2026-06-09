@@ -609,7 +609,8 @@ def generar_html_convocatoria(conv, categoria):
         <a href="../index.html" aria-label="OpoNoticias - Inicio"><img src="../assets/logo.svg" alt="OpoNoticias" class="nav-logo"></a>
         <div class="nav-links">
           <a href="../index.html#categorias">Categorías</a>
-          <a href="../index.html#ultimas">Últimas</a>
+          <a href="../boe-hoy.html">El BOE de hoy</a>
+          <a href="../blog.html">Blog</a>
           <a href="../index.html#como-funciona">Cómo funciona</a>
         </div>
         <div class="nav-cta">
