@@ -174,6 +174,57 @@ Si realmente no hay nada, pon: 1 PLAZA - PERSONAL - [LUGAR]"""
         return "Convocatoria disponible"
 
 
+# Comunidades válidas (debe coincidir con migrar_comunidad.py y el frontend)
+COMUNIDADES = [
+    "Andalucía", "Aragón", "Asturias", "Baleares", "Canarias", "Cantabria",
+    "Castilla-La Mancha", "Castilla y León", "Cataluña", "Comunidad Valenciana",
+    "Extremadura", "Galicia", "La Rioja", "Madrid", "Murcia", "Navarra",
+    "País Vasco", "Ceuta", "Melilla", "Nacional/Estatal",
+]
+_CA_VALIDAS = {c.lower(): c for c in COMUNIDADES}
+
+
+def clasificar_comunidad(titulo, resumen):
+    """Pregunta a Claude la comunidad autónoma de la convocatoria. Devuelve str o None."""
+    prompt = f"""Convocatoria de oposición (BOE):
+Título: {titulo}
+Resumen: {resumen}
+
+¿A qué comunidad autónoma de España corresponde el organismo convocante?
+
+Responde ÚNICAMENTE con uno de estos valores EXACTOS, sin nada más:
+{", ".join(COMUNIDADES)}
+
+Reglas:
+- Ayuntamientos, diputaciones y organismos locales → la comunidad de ese municipio/provincia.
+- Juntas, gobiernos y consejerías autonómicas → su comunidad.
+- Ministerios, INGESA, Guardia Civil, Policía Nacional, Administración General del Estado,
+  agencias estatales, universidades de ámbito estatal → Nacional/Estatal.
+- Si no puedes determinarla con seguridad, responde: DESCONOCIDA"""
+    try:
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        data = {
+            "model": "claude-3-haiku-20240307",
+            "max_tokens": 20,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'),
+                                     headers=headers, method='POST')
+        response = urllib.request.urlopen(req, timeout=10)
+        result = json.loads(response.read().decode('utf-8'))
+        response.close()
+        texto = result['content'][0]['text'].strip()
+        return _CA_VALIDAS.get(texto.lower())   # None si DESCONOCIDA / no válida
+    except Exception as e:
+        print(f"⚠️  Error clasificando comunidad: {e}")
+        return None
+
+
 def extraer_cuerpo(titulo):
     """Extrae el tipo de puesto del título"""
     texto_busqueda = titulo.upper()
@@ -251,14 +302,19 @@ def limpiar_titulo(titulo):
 
 def guardar_en_supabase(conv):
     """Guarda UNA convocatoria en Supabase. Retorna True si se guardó, False si ya existía."""
-    cuerpo, _ = extraer_cuerpo(conv['titulo'])
+    cuerpo, categoria = extraer_cuerpo(conv['titulo'])
     data = {
         'fecha': conv['fecha'],
         'titulo': conv['titulo'],
         'enlace': conv['enlace'],
         'resumen': conv['resumen'],
-        'cuerpo': cuerpo
+        'cuerpo': cuerpo,
+        'categoria': categoria,                       # ← el frontend filtra/agrupa por aquí
+        'resumen_claude': conv.get('resumen_ia'),     # ← el frontend lee el puesto/plazas de aquí
     }
+    # Comunidad autónoma (puede ser None → se infiere en el frontend)
+    if conv.get('comunidad_autonoma'):
+        data['comunidad_autonoma'] = conv['comunidad_autonoma']
 
     try:
         url = f"{SUPABASE_URL}/rest/v1/convocatorias"
@@ -282,9 +338,25 @@ def guardar_en_supabase(conv):
         if e.code == 409:
             print(f"ℹ️  Ya existe: {conv['titulo'][:60]}...")
             return False
-        else:
-            print(f"❌ Error guardando en Supabase: {e}")
-            return False
+        # La columna comunidad_autonoma puede no existir aún → reintentar sin ella
+        if e.code == 400 and 'comunidad_autonoma' in data:
+            print("ℹ️  Columna comunidad_autonoma no existe aún; reintento sin ella.")
+            data.pop('comunidad_autonoma', None)
+            try:
+                req2 = urllib.request.Request(
+                    url, data=json.dumps(data).encode('utf-8'),
+                    headers=headers, method='POST')
+                r2 = urllib.request.urlopen(req2, timeout=10)
+                r2.read(); r2.close()
+                print(f"✓ Guardada (sin comunidad): {conv['titulo'][:60]}...")
+                return True
+            except urllib.error.HTTPError as e2:
+                if e2.code == 409:
+                    return False
+                print(f"❌ Error guardando en Supabase (reintento): {e2}")
+                return False
+        print(f"❌ Error guardando en Supabase: {e}")
+        return False
     except Exception as e:
         print(f"❌ Error: {e}")
         return False
@@ -543,9 +615,17 @@ def generar_html_convocatoria(conv, categoria):
 def regenerar_sitemap(slugs_nuevos):
     """Regenera el sitemap.xml"""
     try:
+        hoy = datetime.now().strftime("%Y-%m-%d")
         urls = [
-            ("https://oponoticias.com/", "2026-05-23", "daily", "1.0"),
-            ("https://oponoticias.com/categoria/educacion.html", "2026-05-23", "daily", "0.8"),
+            ("https://oponoticias.com/", hoy, "daily", "1.0"),
+            ("https://oponoticias.com/categoria/educacion.html", hoy, "daily", "0.8"),
+            ("https://oponoticias.com/categoria/sanidad.html", hoy, "daily", "0.8"),
+            ("https://oponoticias.com/categoria/justicia.html", hoy, "daily", "0.8"),
+            ("https://oponoticias.com/categoria/seguridad.html", hoy, "daily", "0.8"),
+            ("https://oponoticias.com/categoria/administracion.html", hoy, "daily", "0.8"),
+            ("https://oponoticias.com/categoria/hacienda.html", hoy, "daily", "0.8"),
+            ("https://oponoticias.com/categoria/correos.html", hoy, "daily", "0.8"),
+            ("https://oponoticias.com/categoria/tecnica.html", hoy, "daily", "0.8"),
         ]
 
         for slug in slugs_nuevos:
@@ -641,6 +721,7 @@ if __name__ == "__main__":
 
             print(f"\n🤖 Analizando: {conv['titulo'][:60]}...")
             conv['resumen_ia'] = generar_resumen_con_claude(conv['titulo'], conv['resumen'])
+            conv['comunidad_autonoma'] = clasificar_comunidad(conv['titulo'], conv['resumen'])
 
             if guardar_en_supabase(conv):
                 enviar_a_telegram(conv)
