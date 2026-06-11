@@ -520,22 +520,26 @@ def enviar_a_telegram(conv):
         print(f"❌ Error Telegram: {e}")
 
 
-def generar_slug(titulo):
-    """Genera un slug seguro a partir del título"""
+def generar_slug(titulo, ref_boe=""):
+    """Genera un slug único usando el título + referencia BOE como sufijo."""
     slug = titulo.lower()
     slug = unicodedata.normalize('NFKD', slug)
     slug = ''.join([c for c in slug if not unicodedata.combining(c)])
     slug = re.sub(r'[^a-z0-9]+', '-', slug)
     slug = slug.strip('-')
     slug = re.sub(r'-+', '-', slug)
-    slug = slug[:80]
+    slug = slug[:60]
+    # El ref_boe (ej: BOE-A-2026-12461) garantiza unicidad aunque los títulos coincidan
+    if ref_boe and ref_boe != "BOE":
+        sufijo = re.sub(r'[^a-z0-9]+', '-', ref_boe.lower()).strip('-')
+        return f"{slug}-{sufijo}.html"
     return f"{slug}.html"
 
 
 def generar_html_convocatoria(conv, categoria):
     """Genera un archivo HTML por convocatoria"""
 
-    slug = generar_slug(conv['titulo'])
+    slug = generar_slug(conv['titulo'], conv.get('ref_boe', ''))
     html_path = WEB_CONVOCATORIA_DIR / slug
 
     # Si ya existe, no regenerar
@@ -712,7 +716,7 @@ def generar_html_convocatoria(conv, categoria):
 
 
 def regenerar_sitemap(slugs_nuevos):
-    """Regenera el sitemap.xml"""
+    """Regenera el sitemap.xml incluyendo TODAS las páginas de convocatoria existentes."""
     try:
         hoy = datetime.now().strftime("%Y-%m-%d")
         urls = [
@@ -729,10 +733,21 @@ def regenerar_sitemap(slugs_nuevos):
             ("https://oponoticias.com/categoria/tecnica.html", hoy, "daily", "0.8"),
         ]
 
+        # Recoger todos los slugs históricos ya generados en el repo web
+        slugs_existentes = set()
+        if WEB_CONVOCATORIA_DIR.exists():
+            for f in sorted(WEB_CONVOCATORIA_DIR.glob("*.html")):
+                slugs_existentes.add(f.name)
+
+        # Añadir también los del día (por si aún no están en disco)
         for slug in slugs_nuevos:
+            slugs_existentes.add(slug)
+
+        # Eliminar duplicados manteniendo orden determinista
+        for slug in sorted(slugs_existentes):
             urls.append((
                 f"https://oponoticias.com/convocatoria/{slug}",
-                datetime.now().strftime("%Y-%m-%d"),
+                hoy,
                 "weekly",
                 "0.7"
             ))
