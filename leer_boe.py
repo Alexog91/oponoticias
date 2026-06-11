@@ -818,7 +818,10 @@ def commit_a_github(mensaje, archivos):
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error en git: {e}")
+        msg = str(e)
+        if GITHUB_TOKEN:
+            msg = msg.replace(GITHUB_TOKEN, "***")
+        print(f"❌ Error en git: {msg}")
         return False
     except Exception as e:
         print(f"❌ Error en commit a GitHub: {e}")
